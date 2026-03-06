@@ -16,5 +16,6 @@ const transcriptSchema = new mongoose.Schema({
 });
 
 transcriptSchema.index({ meetingId: 1, startTime: 1 });
+transcriptSchema.index({ text: 'text' });
 
 module.exports = mongoose.model('Transcript', transcriptSchema);
