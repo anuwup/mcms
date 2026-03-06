@@ -119,6 +119,17 @@ function DashboardApp() {
     fetchDashboardStats();
   }, []);
 
+  // Open poll modal when landing with ?meeting= ID (e.g. shared poll link)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const meetingFromUrl = params.get("meeting");
+    if (meetingFromUrl) {
+      setPollMeetingId(meetingFromUrl);
+      window.history.replaceState({}, "", window.location.pathname || "/");
+    }
+  }, []);
+
   // Apply theme to document root
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -140,7 +151,8 @@ function DashboardApp() {
   useEffect(() => {
     if (!socket || !selectedMeeting) return;
 
-    const meetingId = selectedMeeting.id;
+    const meetingId = selectedMeeting.id != null ? String(selectedMeeting.id) : null;
+    if (!meetingId) return;
     socket.emit('join_meeting', { meetingId });
 
     const handleTranscriptUpdate = (segment) => {
@@ -329,7 +341,7 @@ function DashboardApp() {
                       <button
                         className="btn btn-sm btn-primary"
                         style={{ marginLeft: 'auto' }}
-                        onClick={(e) => { e.stopPropagation(); setPollMeetingId(meeting.id); }}
+                        onClick={(e) => { e.stopPropagation(); setPollMeetingId(meeting.id != null ? String(meeting.id) : meeting.id); }}
                       >
                         Vote
                       </button>

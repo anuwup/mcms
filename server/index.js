@@ -302,14 +302,15 @@ io.on('connection', (socket) => {
 
     socket.on('join_meeting', ({ meetingId }) => {
         if (meetingId) {
-            socket.join(`meeting:${meetingId}`);
-            socket.currentMeetingId = meetingId;
+            const mid = String(meetingId);
+            socket.join(`meeting:${mid}`);
+            socket.currentMeetingId = mid;
         }
     });
 
     socket.on('leave_meeting', ({ meetingId }) => {
         if (meetingId) {
-            socket.leave(`meeting:${meetingId}`);
+            socket.leave(`meeting:${String(meetingId)}`);
             socket.currentMeetingId = null;
         }
     });
@@ -396,8 +397,12 @@ io.on('connection', (socket) => {
     // ── WebRTC Signaling ──────────────────────────────────────
     socket.on('webrtc_join', async ({ meetingId, name, image }) => {
         if (!meetingId) return;
-        if (!meetingPeers.has(meetingId)) meetingPeers.set(meetingId, new Map());
-        const room = meetingPeers.get(meetingId);
+        const mid = String(meetingId);
+        const roomId = `meeting:${mid}`;
+        socket.join(roomId);
+
+        if (!meetingPeers.has(mid)) meetingPeers.set(mid, new Map());
+        const room = meetingPeers.get(mid);
 
         let peerName = name || 'User';
         let peerImage = image || null;
@@ -416,7 +421,7 @@ io.on('connection', (socket) => {
 
         room.set(socket.id, { userId: socket.userId, name: peerName, image: peerImage });
 
-        socket.to(`meeting:${meetingId}`).emit('webrtc_peer_joined', {
+        socket.to(roomId).emit('webrtc_peer_joined', {
             socketId: socket.id,
             userId: socket.userId,
             name: peerName,
@@ -438,19 +443,20 @@ io.on('connection', (socket) => {
 
     socket.on('webrtc_toggle', ({ meetingId, kind, enabled }) => {
         if (!meetingId) return;
-        socket.to(`meeting:${meetingId}`).emit('webrtc_peer_toggle', {
+        socket.to(`meeting:${String(meetingId)}`).emit('webrtc_peer_toggle', {
             socketId: socket.id, kind, enabled,
         });
     });
 
     socket.on('webrtc_leave', ({ meetingId }) => {
         if (!meetingId) return;
-        const room = meetingPeers.get(meetingId);
+        const mid = String(meetingId);
+        const room = meetingPeers.get(mid);
         if (room) {
             room.delete(socket.id);
-            if (room.size === 0) meetingPeers.delete(meetingId);
+            if (room.size === 0) meetingPeers.delete(mid);
         }
-        socket.to(`meeting:${meetingId}`).emit('webrtc_peer_left', { socketId: socket.id });
+        socket.to(`meeting:${mid}`).emit('webrtc_peer_left', { socketId: socket.id });
     });
 
     socket.on('disconnect', () => {

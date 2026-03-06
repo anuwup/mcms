@@ -11,7 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 
 const _raw = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
-const API_BASE = _raw.endsWith('/api') ? _raw : `${_raw}/api`;
+const API_BASE = _raw.endsWith('/api') ? _raw : `${_raw.replace(/\/?$/, '')}/api`;
 
 export default function PollVoting({ meetingId, onClose }) {
     const { user } = useAuth();
@@ -28,7 +28,8 @@ export default function PollVoting({ meetingId, onClose }) {
 
     useEffect(() => {
         if (!meetingId || !user?.token) return;
-        fetch(`${API_BASE}/polls/${meetingId}`, {
+        const mid = String(meetingId);
+        fetch(`${API_BASE}/polls/${mid}`, {
             headers: { Authorization: `Bearer ${user.token}` },
         })
             .then(r => {
@@ -39,7 +40,7 @@ export default function PollVoting({ meetingId, onClose }) {
                 setPoll(data);
                 setMeetingTitle(data.meetingTitle || '');
                 setModality(data.modality || '');
-                setMeetingUrl(data.meetingId ? `${window.location.origin}/?meeting=${data.meetingId || meetingId}` : '');
+                setMeetingUrl(data.meetingId ? `${window.location.origin}/?meeting=${data.meetingId || mid}` : '');
 
                 const myVoteIdx = data.slots?.findIndex(s =>
                     s.votes?.some(v => (v._id || v).toString() === user._id.toString())
