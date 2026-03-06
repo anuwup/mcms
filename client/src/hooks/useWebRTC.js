@@ -1,24 +1,24 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-const ICE_SERVERS = [
+const METERED_API_KEY = import.meta.env.VITE_METERED_API_KEY;
+const METERED_APP = import.meta.env.VITE_METERED_APP;
+
+const FALLBACK_ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    {
-        urls: 'turn:openrelay.metered.ca:80',
-        username: 'openrelayproject',
-        credential: 'openrelayproject',
-    },
-    {
-        urls: 'turn:openrelay.metered.ca:443',
-        username: 'openrelayproject',
-        credential: 'openrelayproject',
-    },
-    {
-        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-        username: 'openrelayproject',
-        credential: 'openrelayproject',
-    },
 ];
+
+async function getIceServers() {
+    if (METERED_API_KEY && METERED_APP) {
+        try {
+            const res = await fetch(
+                `https://${METERED_APP}.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`
+            );
+            if (res.ok) return await res.json();
+        } catch {}
+    }
+    return FALLBACK_ICE_SERVERS;
+}
 
 export default function useWebRTC(socket, meetingId, currentUser) {
     const [peers, setPeers] = useState([]);
@@ -29,6 +29,7 @@ export default function useWebRTC(socket, meetingId, currentUser) {
     const [mediaError, setMediaError] = useState(null);
 
     const peersRef = useRef(new Map());
+    const iceServersRef = useRef(null);
     const localStreamRef = useRef(null);
     const screenStreamRef = useRef(null);
     const joinedRef = useRef(false);
@@ -36,7 +37,7 @@ export default function useWebRTC(socket, meetingId, currentUser) {
     const createPeerConnection = useCallback((remoteSocketId, remoteInfo, initiator) => {
         if (peersRef.current.has(remoteSocketId)) return peersRef.current.get(remoteSocketId).pc;
 
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const pc = new RTCPeerConnection({ iceServers: iceServersRef.current || FALLBACK_ICE_SERVERS });
 
         if (localStreamRef.current) {
             for (const track of localStreamRef.current.getTracks()) {
@@ -105,6 +106,8 @@ export default function useWebRTC(socket, meetingId, currentUser) {
             return false;
         }
         if (!meetingId) return false;
+
+        iceServersRef.current = await getIceServers();
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
