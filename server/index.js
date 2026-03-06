@@ -1,10 +1,12 @@
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
 const { Server } = require('socket.io');
 const nodemailer = require('nodemailer');
 
@@ -45,6 +47,26 @@ const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
 app.use(cors());
 app.use(express.json());
+
+// ── Serve uploaded files statically ──────────────────────────
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ── Multer config for avatar uploads ─────────────────────────
+const avatarStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, path.join(__dirname, 'uploads', 'avatars')),
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `${req.user.id}-${Date.now()}${ext}`);
+    },
+});
+const avatarUpload = multer({
+    storage: avatarStorage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+        if (/^image\/(jpeg|png|gif|webp)$/.test(file.mimetype)) return cb(null, true);
+        cb(new Error('Only JPEG, PNG, GIF, and WebP images are allowed'));
+    },
+});
 
 // ── Socket.io Setup ──────────────────────────────────────────
 const io = new Server(server, {
@@ -403,7 +425,7 @@ app.post('/api/auth/register', async (req, res) => {
             let existing = await User.findOne({ email });
             if (existing) return res.status(400).json({ message: 'User already exists' });
             const user = await User.create({ name, email, password });
-            return res.status(201).json({ _id: user._id, name: user.name, email: user.email, token: generateToken(user._id) });
+            return res.status(201).json({ _id: user._id, name: user.name, email: user.email, profileImage: user.profileImage, token: generateToken(user._id) });
         } else {
             const existing = inMemoryUsers.find(u => u.email === email.toLowerCase());
             if (existing) return res.status(400).json({ message: 'User already exists' });
@@ -412,7 +434,7 @@ app.post('/api/auth/register', async (req, res) => {
             const userId = `user_${Date.now()}`;
             const user = { _id: userId, name, email: email.toLowerCase(), password: hashedPassword };
             inMemoryUsers.push(user);
-            return res.status(201).json({ _id: user._id, name: user.name, email: user.email, token: generateToken(user._id) });
+            return res.status(201).json({ _id: user._id, name: user.name, email: user.email, profileImage: null, token: generateToken(user._id) });
         }
     } catch (error) {
         console.error('Register error:', error);
@@ -433,13 +455,13 @@ app.post('/api/auth/login', async (req, res) => {
             if (!user) return res.status(401).json({ message: 'Invalid email or password' });
             const isMatch = await user.matchPassword(password);
             if (!isMatch) return res.status(401).json({ message: 'Invalid email or password' });
-            return res.json({ _id: user._id, name: user.name, email: user.email, token: generateToken(user._id) });
+            return res.json({ _id: user._id, name: user.name, email: user.email, profileImage: user.profileImage, token: generateToken(user._id) });
         } else {
             const user = inMemoryUsers.find(u => u.email === email.toLowerCase());
             if (!user) return res.status(401).json({ message: 'Invalid email or password' });
             const isMatch = await bcrypt.compare(password, user.password);
             if (!isMatch) return res.status(401).json({ message: 'Invalid email or password' });
-            return res.json({ _id: user._id, name: user.name, email: user.email, token: generateToken(user._id) });
+            return res.json({ _id: user._id, name: user.name, email: user.email, profileImage: user.profileImage || null, token: generateToken(user._id) });
         }
     } catch (error) {
         console.error('Login error:', error);
@@ -455,7 +477,7 @@ app.get('/api/auth/me', protect, async (req, res) => {
             return res.json(user);
         }
         const user = inMemoryUsers.find(u => u._id === req.user.id);
-        res.json(user ? { _id: user._id, name: user.name, email: user.email } : null);
+        res.json(user ? { _id: user._id, name: user.name, email: user.email, profileImage: user.profileImage || null } : null);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }
@@ -971,6 +993,153 @@ app.get('/api/dashboard/stats', protect, (req, res) => {
     const stats = { ...dashboardStats };
     if (req.user && req.user.name) stats.user = req.user.name;
     res.json(stats);
+});
+
+// ─── PROFILE ROUTES ──────────────────────────────────────────
+
+app.put('/api/profile/name', protect, async (req, res) => {
+    try {
+        const { name } = req.body;
+        if (!name || !name.trim()) return res.status(400).json({ message: 'Name is required' });
+
+        if (usingMongo && User) {
+            const user = await User.findByIdAndUpdate(req.user.id, { name: name.trim() }, { new: true }).select('-password');
+            return res.json({ name: user.name });
+        }
+        const user = inMemoryUsers.find(u => u._id === req.user.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        user.name = name.trim();
+        res.json({ name: user.name });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+app.put('/api/profile/email', protect, async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email || !email.trim()) return res.status(400).json({ message: 'Email is required' });
+
+        if (usingMongo && User) {
+            const existing = await User.findOne({ email: email.trim().toLowerCase(), _id: { $ne: req.user.id } });
+            if (existing) return res.status(400).json({ message: 'Email already in use' });
+            const user = await User.findByIdAndUpdate(req.user.id, { email: email.trim() }, { new: true }).select('-password');
+            return res.json({ email: user.email });
+        }
+        const lower = email.trim().toLowerCase();
+        const conflict = inMemoryUsers.find(u => u._id !== req.user.id && u.email === lower);
+        if (conflict) return res.status(400).json({ message: 'Email already in use' });
+        const user = inMemoryUsers.find(u => u._id === req.user.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        user.email = lower;
+        res.json({ email: user.email });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+app.put('/api/profile/password', protect, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || !newPassword) return res.status(400).json({ message: 'Both fields are required' });
+        if (newPassword.length < 6) return res.status(400).json({ message: 'New password must be at least 6 characters' });
+
+        if (usingMongo && User) {
+            const user = await User.findById(req.user.id);
+            if (!user) return res.status(404).json({ message: 'User not found' });
+            const isMatch = await user.matchPassword(currentPassword);
+            if (!isMatch) return res.status(401).json({ message: 'Current password is incorrect' });
+            user.password = newPassword;
+            await user.save();
+            return res.json({ message: 'Password updated' });
+        }
+        const user = inMemoryUsers.find(u => u._id === req.user.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) return res.status(401).json({ message: 'Current password is incorrect' });
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
+        res.json({ message: 'Password updated' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+app.post('/api/profile/avatar', protect, (req, res) => {
+    avatarUpload.single('avatar')(req, res, async (err) => {
+        if (err) {
+            const message = err instanceof multer.MulterError
+                ? (err.code === 'LIMIT_FILE_SIZE' ? 'Image must be under 5 MB' : err.message)
+                : err.message;
+            return res.status(400).json({ message });
+        }
+        if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+        try {
+            const profileImage = `/uploads/avatars/${req.file.filename}`;
+
+            if (usingMongo && User) {
+                const prev = await User.findById(req.user.id).select('profileImage');
+                if (prev?.profileImage) {
+                    const oldPath = path.join(__dirname, prev.profileImage);
+                    fs.unlink(oldPath, () => {});
+                }
+                await User.findByIdAndUpdate(req.user.id, { profileImage });
+            } else {
+                const user = inMemoryUsers.find(u => u._id === req.user.id);
+                if (user) user.profileImage = profileImage;
+            }
+
+            res.json({ profileImage });
+        } catch (error) {
+            res.status(500).json({ message: 'Server error', error: error.message });
+        }
+    });
+});
+
+app.delete('/api/profile/avatar', protect, async (req, res) => {
+    try {
+        if (usingMongo && User) {
+            const user = await User.findById(req.user.id).select('profileImage');
+            if (user?.profileImage) {
+                const filePath = path.join(__dirname, user.profileImage);
+                fs.unlink(filePath, () => {});
+                await User.findByIdAndUpdate(req.user.id, { profileImage: null });
+            }
+        } else {
+            const user = inMemoryUsers.find(u => u._id === req.user.id);
+            if (user) user.profileImage = null;
+        }
+        res.json({ message: 'Avatar removed' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+app.delete('/api/profile/account', protect, async (req, res) => {
+    try {
+        const { password } = req.body;
+        if (!password) return res.status(400).json({ message: 'Password is required' });
+
+        if (usingMongo && User) {
+            const user = await User.findById(req.user.id);
+            if (!user) return res.status(404).json({ message: 'User not found' });
+            const isMatch = await user.matchPassword(password);
+            if (!isMatch) return res.status(401).json({ message: 'Incorrect password' });
+            if (user.profileImage) {
+                fs.unlink(path.join(__dirname, user.profileImage), () => {});
+            }
+            await User.findByIdAndDelete(req.user.id);
+            return res.json({ message: 'Account deleted' });
+        }
+        const idx = inMemoryUsers.findIndex(u => u._id === req.user.id);
+        if (idx === -1) return res.status(404).json({ message: 'User not found' });
+        const isMatch = await bcrypt.compare(password, inMemoryUsers[idx].password);
+        if (!isMatch) return res.status(401).json({ message: 'Incorrect password' });
+        inMemoryUsers.splice(idx, 1);
+        res.json({ message: 'Account deleted' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
 });
 
 // ─── Serve client build under /mcms (production) ─────────────
