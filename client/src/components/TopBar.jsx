@@ -24,7 +24,7 @@ const SERVER_BASE = _raw.replace(/\/api$/, '');
 
 function SidebarToggleIcon({ collapsed }) {
     return (
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="svg-icon sidebar-toggle-button-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="svg-icon sidebar-toggle-button-icon">
             <rect x="1" y="2" width="22" height="20" rx="4" />
             <rect x={collapsed ? "4.9" : "4"} y={collapsed ? "6" : "5"} width="2" height={collapsed ? "12" : "14"} rx="1" fill="currentColor" className={collapsed ? 'sidebar-toggle-icon-close' : 'sidebar-toggle-icon-open'} />
         </svg>
@@ -131,7 +131,7 @@ export default function TopBar({ streak, userName, onNewMeeting, theme = 'dark',
                     </div>
                 </ShortcutTooltip>
                 <div className="topbar-brand">
-                    <span className="brand-name">MCMS</span>
+                    <span className="brand-name">Concord</span>
                 </div>
             </div>
 

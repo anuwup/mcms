@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Unica+One&display=swap');
 
 /* ═══════════════════════════════════════════════════════════════
    1. FLEXOKI PALETTE
@@ -1458,6 +1459,7 @@ input[type="date"].input-field {
 }
 
 .brand-name {
+font-family: 'Unica One', cursive;
   font-size: var(--font-size-subheading);
   font-weight: 800;
   color: var(--primary);
@@ -1601,6 +1603,11 @@ input[type="date"].input-field {
   transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
+.theme-toggle-thumb:hover {
+
+  color: var(--primary);
+}
+
 .theme-toggle.dark .theme-toggle-thumb { transform: translateX(0); }
 
 .theme-toggle.light {
@@ -1610,8 +1617,11 @@ input[type="date"].input-field {
 
 .theme-toggle.light .theme-toggle-thumb {
   transform: translateX(var(--lk-size-md));
-  background: var(--flexoki-400);
-  color: var(--flexoki-paper);
+  color: var(--flexoki-700);
+}
+
+.theme-toggle.light .theme-toggle-thumb:hover {
+  color: var(--primary);
 }
 
 
@@ -2253,12 +2263,13 @@ input[type="date"].input-field {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1rem;
+  padding: calc(var(--lk-size-sm) * var(--font-size-body)/(1rem)) calc(var(--lk-size-md) * var(--font-size-body)/(1rem));
+  padding-top: calc(var(--lk-size-md) * var(--font-size-body)/(1.272rem));
   border-bottom: 0.0625rem solid var(--border);
 }
 
 .notification-dropdown-title {
-  font-size: 0.8125rem;
+  font-size: var(--font-size-label);
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -2342,7 +2353,7 @@ input[type="date"].input-field {
 }
 
 .notification-item-icon.confirmed {
-  background: var(--accent-emerald-muted, rgba(52, 211, 153, 0.15));
+  background: var(--flair-emerald-background);
   color: var(--accent-emerald);
 }
 
@@ -2352,14 +2363,15 @@ input[type="date"].input-field {
 }
 
 .notification-item-message {
-  font-size: 0.8125rem;
+  font-size: var(--font-size-label);
   color: var(--text-primary);
   margin: 0;
   line-height: 1.4;
+  letter-spacing: -0.004em;
 }
 
 .notification-item-time {
-  font-size: 0.6875rem;
+  font-size: var(--font-size-caption);
   color: var(--text-muted);
   margin-top: 0.25rem;
   display: block;
@@ -2907,7 +2919,7 @@ input[type="date"].input-field {
   color: var(--text-primary);
   flex: 1;
   min-width: 0;
-  padding: 0.5rem 0.75rem;
+  padding: calc(var(--lk-size-xs) * var(--font-size-body)/(1rem)) calc(var(--lk-size-sm) * var(--font-size-body)/(1rem));
   background: var(--bg-elevated);
   border-radius: var(--radius-sm);
   border: 0.0625rem solid transparent;

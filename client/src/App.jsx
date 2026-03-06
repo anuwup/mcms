@@ -108,6 +108,20 @@ function DashboardApp() {
   }, [theme]);
 
   useEffect(() => {
+    const labels = {
+      dashboard: "Dashboard",
+      meeting: selectedMeeting?.title || "Live Meeting",
+      schedule: "Schedule",
+      archive: "Archive",
+      analytics: "Analytics",
+      settings: "Settings",
+      profile: "Profile",
+    };
+    const label = labels[currentView] ?? currentView;
+    document.title = `${label} — Concord`;
+  }, [currentView, selectedMeeting]);
+
+  useEffect(() => {
     if (selectedMeeting) {
       fetchAgenda(selectedMeeting.id);
       fetchTranscript(selectedMeeting.id);
@@ -424,6 +438,11 @@ function DashboardApp() {
 export default function App() {
   const { user, loading } = useAuth();
   const [authView, setAuthView] = useState("login");
+
+  useEffect(() => {
+    if (loading) document.title = "Concord";
+    else if (!user) document.title = authView === "login" ? "Login — Concord" : "Signup — Concord";
+  }, [loading, user, authView]);
 
   if (loading) {
     return (
