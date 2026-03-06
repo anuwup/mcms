@@ -40,12 +40,12 @@ export default function ProductivityDashboard({ stats, userName }) {
 
     return (
         <div className="productivity-dashboard">
-            <div className="dashboard-header">
+            <div className="page-header">
                 <div>
                     <h2 style={{ fontSize: 'var(--font-size-title3)', fontWeight: 700, marginBottom: 'var(--lk-size-2xs)', letterSpacing: '-0.022em' }}>
                         Productivity Dashboard
                     </h2>
-                    <p style={{ fontSize: 'var(--font-size-body)', color: 'var(--text-muted)', marginBottom: 'calc(var(--lk-size-sm) * var(--font-size-title3)/1rem)' }}>
+                    <p style={{ fontSize: 'var(--font-size-body)', color: 'var(--text-secondary)', marginBottom: 'calc(var(--lk-size-sm) * var(--font-size-title3)/1rem)' }}>
                         Welcome back, <strong>{userName || stats.user}</strong>. Here's your meeting intelligence overview.
                     </p>
                 </div>
@@ -285,10 +285,7 @@ export default function ProductivityDashboard({ stats, userName }) {
           overflow-y: auto;
           padding-bottom: 1.5rem;
         }
-        .dashboard-header {
-          padding: calc(var(--lk-size-lg) * var(--font-size-title3)/(1rem)) calc(var(--lk-size-lg) * var(--font-size-title3)/(1rem)) var(--lk-size-sm);
-		  padding-top: calc(var(--lk-size-lg) * var(--font-size-title3)/1.272rem);
-        }
+
         .badges-grid {
           display: grid;
           grid-template-columns: repeat(2, 1fr);

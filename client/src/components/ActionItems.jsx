@@ -1,10 +1,16 @@
 import { useState } from 'react';
 import Icon from './Icon';
-import { CheckmarkCircle01Icon, Clock01Icon, AlertCircleIcon, ArrowRight01Icon, ArrowDown01Icon, ArrowUp01Icon, FlashIcon } from '@hugeicons/core-free-icons';
+import {
+    CheckmarkCircle01Icon, Clock01Icon, AlertCircleIcon,
+    ArrowRight01Icon, ArrowDown01Icon, ArrowUp01Icon,
+    FlashIcon, Add01Icon, Delete02Icon, SparklesIcon,
+} from '@hugeicons/core-free-icons';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 const categoryChips = {
     'Technical': 'chip-blue',
-    'Administrative': 'chip-violet',
+    'Administrative': 'chip-purple',
     'Decision': 'chip-amber',
     'Follow-up': 'chip-cyan',
 };
@@ -13,10 +19,60 @@ const statusConfig = {
     'completed': { icon: CheckmarkCircle01Icon, color: 'var(--accent-emerald)', label: 'Completed' },
     'in-progress': { icon: Clock01Icon, color: 'var(--accent-amber)', label: 'In Progress' },
     'pending': { icon: AlertCircleIcon, color: 'var(--text-muted)', label: 'Pending' },
+    'draft': { icon: AlertCircleIcon, color: 'var(--text-tertiary)', label: 'Draft' },
 };
 
-export default function ActionItems({ items }) {
+const CATEGORIES = ['Technical', 'Administrative', 'Decision', 'Follow-up'];
+const STATUSES = ['draft', 'pending', 'in-progress', 'completed'];
+
+export default function ActionItems({ items, meetingId, fetchWithAuth, onRefresh }) {
     const [collapsed, setCollapsed] = useState(false);
+    const [adding, setAdding] = useState(false);
+    const [newTitle, setNewTitle] = useState('');
+    const [newCategory, setNewCategory] = useState('Technical');
+    const [newDeadline, setNewDeadline] = useState('');
+    const [editingId, setEditingId] = useState(null);
+
+    const handleCreate = async () => {
+        if (!newTitle.trim() || !meetingId) return;
+        try {
+            const res = await (fetchWithAuth || fetch)(`${API_BASE}/action-items/${meetingId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: newTitle.trim(), category: newCategory, deadline: newDeadline || null }),
+            });
+            if (res.ok) {
+                setNewTitle('');
+                setNewDeadline('');
+                setAdding(false);
+                onRefresh?.();
+            }
+        } catch (err) {
+            console.error('Failed to create action item:', err);
+        }
+    };
+
+    const handleStatusChange = async (itemId, newStatus) => {
+        try {
+            await (fetchWithAuth || fetch)(`${API_BASE}/action-items/${itemId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            onRefresh?.();
+        } catch (err) {
+            console.error('Failed to update status:', err);
+        }
+    };
+
+    const handleDelete = async (itemId) => {
+        try {
+            await (fetchWithAuth || fetch)(`${API_BASE}/action-items/${itemId}`, { method: 'DELETE' });
+            onRefresh?.();
+        } catch (err) {
+            console.error('Failed to delete:', err);
+        }
+    };
 
     return (
         <div className="action-items-section">
@@ -33,17 +89,52 @@ export default function ActionItems({ items }) {
                 <div className="action-items-list">
                     {items.map((item, index) => {
                         const status = statusConfig[item.status] || statusConfig.pending;
+                        const isEditing = editingId === (item.id || item._id);
 
                         return (
                             <div
-                                key={item.id}
+                                key={item.id || item._id || index}
                                 className="action-item-card glass-card animate-in"
                                 style={{ animationDelay: `${index * 0.06}s` }}
-                                id={`action-item-${item.id}`}
                             >
                                 <div className="ai-card-top">
                                     <Icon icon={status.icon} size={16} style={{ color: status.color, flexShrink: 0 }} />
                                     <span className="ai-card-title">{item.title}</span>
+                                    {item.source === 'ai-extracted' && (
+                                        <span className="chip chip-purple" style={{ fontSize: '0.5625rem', padding: '1px 5px' }}>
+                                            <Icon icon={SparklesIcon} size={8} /> AI
+                                        </span>
+                                    )}
+                                    <div style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }}>
+                                        {isEditing ? (
+                                            <select
+                                                className="input-field"
+                                                style={{ fontSize: '0.625rem', padding: '2px 4px', width: 'auto' }}
+                                                value={item.status}
+                                                onChange={(e) => { handleStatusChange(item.id || item._id, e.target.value); setEditingId(null); }}
+                                            >
+                                                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                            </select>
+                                        ) : (
+                                            <button
+                                                className="btn-icon btn-icon-sm"
+                                                style={{ fontSize: '0.5rem' }}
+                                                onClick={() => setEditingId(item.id || item._id)}
+                                                title="Change status"
+                                            >
+                                                <Icon icon={Clock01Icon} size={10} />
+                                            </button>
+                                        )}
+                                        {meetingId && (
+                                            <button
+                                                className="btn-icon btn-icon-sm"
+                                                onClick={() => handleDelete(item.id || item._id)}
+                                                title="Delete"
+                                            >
+                                                <Icon icon={Delete02Icon} size={10} />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="ai-card-meta">
@@ -52,16 +143,59 @@ export default function ActionItems({ items }) {
                                     </span>
                                     <span className="ai-card-assignee">
                                         <Icon icon={ArrowRight01Icon} size={10} />
-                                        {item.assignee}
+                                        {item.assignee || 'Unassigned'}
                                     </span>
-                                    <span className="ai-card-deadline">
-                                        <Icon icon={Clock01Icon} size={10} />
-                                        {item.deadline}
-                                    </span>
+                                    {item.deadline && (
+                                        <span className="ai-card-deadline">
+                                            <Icon icon={Clock01Icon} size={10} />
+                                            {item.deadline}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         );
                     })}
+
+                    {adding ? (
+                        <div className="glass-card inline-form-card">
+                            <input
+                                className="input-field"
+                                placeholder="Action item title..."
+                                value={newTitle}
+                                onChange={(e) => setNewTitle(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                                autoFocus
+                                style={{ marginBottom: '0.25rem' }}
+                            />
+                            <div className="inline-form-row">
+                                <select
+                                    className="input-field"
+                                    value={newCategory}
+                                    onChange={(e) => setNewCategory(e.target.value)}
+                                >
+                                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <input
+                                    type="date"
+                                    className="input-field"
+                                    value={newDeadline}
+                                    onChange={(e) => setNewDeadline(e.target.value)}
+                                />
+                                <button className="btn btn-sm btn-primary" onClick={handleCreate}>Add</button>
+                                <button className="btn btn-sm btn-secondary" onClick={() => setAdding(false)}>Cancel</button>
+                            </div>
+                        </div>
+                    ) : (
+                        meetingId && (
+                            <button
+                                className="btn-icon"
+                                style={{ margin: '0.25rem 0', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)' }}
+                                onClick={() => setAdding(true)}
+                            >
+                                <Icon icon={Add01Icon} size={12} /> Add Action Item
+                            </button>
+                        )
+                    )}
                 </div>
             )}
         </div>

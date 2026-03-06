@@ -1,9 +1,31 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Icon from './Icon';
 import { Target01Icon, Alert01Icon, ChartIncreaseIcon, ArrowDown01Icon, ArrowUp01Icon, EyeIcon } from '@hugeicons/core-free-icons';
 
-export default function LiveOutcome() {
+export default function LiveOutcome({ agendaItems = [], actionItems = [], transcripts = [] }) {
     const [collapsed, setCollapsed] = useState(false);
+
+    const stats = useMemo(() => {
+        const totalAgenda = agendaItems.length;
+        const addressedAgenda = agendaItems.filter(i => i.status === 'completed' || i.status === 'active').length;
+        const unaddressed = totalAgenda - addressedAgenda;
+        const aiCount = actionItems.length;
+
+        const coverage = totalAgenda > 0 ? Math.round((addressedAgenda / totalAgenda) * 100) : 0;
+        const hasTranscripts = transcripts.length > 0;
+        const decisionItems = actionItems.filter(i => i.category === 'Decision').length;
+
+        let qualityScore = 0;
+        if (totalAgenda > 0) qualityScore += (addressedAgenda / totalAgenda) * 50;
+        if (aiCount > 0) qualityScore += Math.min(aiCount * 10, 30);
+        if (hasTranscripts) qualityScore += 20;
+        qualityScore = Math.min(100, Math.round(qualityScore));
+
+        return { totalAgenda, addressedAgenda, unaddressed, aiCount, qualityScore, decisionItems };
+    }, [agendaItems, actionItems, transcripts]);
+
+    const circumference = 2 * Math.PI * 28;
+    const dashLength = (stats.qualityScore / 100) * circumference;
 
     return (
         <div className="live-outcome">
@@ -11,7 +33,7 @@ export default function LiveOutcome() {
                 <div className="section-title-container">
                     <Icon icon={EyeIcon} size={14} />
                     <span className="section-title">Live Outcome Preview</span>
-                    <span className="chip chip-violet" style={{ fontSize: '0.625rem' }}>DOPPELGANGER</span>
+                    <span className="chip chip-purple" style={{ fontSize: '0.625rem' }}>DOPPELGANGER</span>
                 </div>
                 <Icon icon={collapsed ? ArrowDown01Icon : ArrowUp01Icon} size={14} />
             </div>
@@ -25,7 +47,7 @@ export default function LiveOutcome() {
                                 <circle
                                     cx="32" cy="32" r="28" fill="none"
                                     stroke="url(#scoreGrad)" strokeWidth="4"
-                                    strokeDasharray={`${0.72 * 2 * Math.PI * 28} ${2 * Math.PI * 28}`}
+                                    strokeDasharray={`${dashLength} ${circumference}`}
                                     strokeLinecap="round"
                                     transform="rotate(-90 32 32)"
                                     style={{ transition: 'stroke-dasharray 1s ease' }}
@@ -37,7 +59,7 @@ export default function LiveOutcome() {
                                     </linearGradient>
                                 </defs>
                             </svg>
-                            <span className="score-value">72%</span>
+                            <span className="score-value">{stats.qualityScore}%</span>
                         </div>
                         <div className="score-details">
                             <div className="score-label">Outcome Quality</div>
@@ -48,16 +70,18 @@ export default function LiveOutcome() {
                     <div className="outcome-items">
                         <div className="outcome-item">
                             <Icon icon={Target01Icon} size={14} style={{ color: 'var(--accent-emerald)' }} />
-                            <span>2 of 5 agenda items addressed</span>
+                            <span>{stats.addressedAgenda} of {stats.totalAgenda} agenda items addressed</span>
                         </div>
                         <div className="outcome-item">
                             <Icon icon={ChartIncreaseIcon} size={14} style={{ color: 'var(--primary)' }} />
-                            <span>3 action items extracted so far</span>
+                            <span>{stats.aiCount} action item{stats.aiCount !== 1 ? 's' : ''} extracted so far</span>
                         </div>
-                        <div className="outcome-item">
-                            <Icon icon={Alert01Icon} size={14} style={{ color: 'var(--accent-amber)' }} />
-                            <span>3 topics still unaddressed</span>
-                        </div>
+                        {stats.unaddressed > 0 && (
+                            <div className="outcome-item">
+                                <Icon icon={Alert01Icon} size={14} style={{ color: 'var(--accent-amber)' }} />
+                                <span>{stats.unaddressed} topic{stats.unaddressed !== 1 ? 's' : ''} still unaddressed</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

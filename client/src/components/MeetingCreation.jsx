@@ -361,9 +361,9 @@ export default function MeetingCreation({ onClose, onSubmit }) {
     };
 
     const handleCopyLink = async () => {
-        if (!createdMeeting?.jitsiUrl) return;
+        if (!createdMeeting?.meetingUrl) return;
         try {
-            await navigator.clipboard.writeText(createdMeeting.jitsiUrl);
+            await navigator.clipboard.writeText(createdMeeting.meetingUrl);
             setLinkCopied(true);
             setTimeout(() => setLinkCopied(false), 2000);
         } catch { /* fallback handled by UI */ }
@@ -378,7 +378,7 @@ export default function MeetingCreation({ onClose, onSubmit }) {
 
     // Post-creation success view
     if (createdMeeting) {
-        const hasJitsi = createdMeeting.jitsiUrl && modality !== 'Offline';
+        const hasMeetingLink = createdMeeting.meetingUrl && modality !== 'Offline';
         const isPoll = slots.length > 1;
         return (
             <div className={`modal-overlay${closing ? ' modal-closing' : ''}`} onClick={handleClose}>
@@ -395,7 +395,7 @@ export default function MeetingCreation({ onClose, onSubmit }) {
                             <Icon icon={Calendar02Icon} size={28} />
                         </div>
                         <h3 className="meeting-created-title">{createdMeeting.title}</h3>
-                        <span className={`chip ${modality === 'Online' ? 'chip-blue' : modality === 'Hybrid' ? 'chip-violet' : 'chip-emerald'}`}
+                        <span className={`chip ${modality === 'Online' ? 'chip-blue' : modality === 'Hybrid' ? 'chip-purple' : 'chip-emerald'}`}
                             style={{ alignSelf: 'center' }}>{modality}</span>
 
                         {isPoll && (
@@ -412,14 +412,14 @@ export default function MeetingCreation({ onClose, onSubmit }) {
                             </div>
                         )}
 
-                        {hasJitsi && (
+                        {hasMeetingLink && (
                             <div className="jitsi-link-card">
                                 <div className="jitsi-link-label">
                                     <Icon icon={Link01Icon} size={14} />
                                     Meeting Link
                                 </div>
                                 <div className="jitsi-link-row">
-                                    <span className="jitsi-link-url">{createdMeeting.jitsiUrl}</span>
+                                    <span className="jitsi-link-url">{createdMeeting.meetingUrl}</span>
                                     <button className={`btn btn-sm ${linkCopied ? 'btn-success' : 'btn-secondary'}`} onClick={handleCopyLink}>
                                         <Icon icon={linkCopied ? Tick01Icon : Copy01Icon} size={14} />
                                         {linkCopied ? 'Copied' : 'Copy'}

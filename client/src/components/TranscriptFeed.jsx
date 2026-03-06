@@ -37,16 +37,12 @@ function parseTimestamp(ts) {
 
 function groupTranscripts(transcripts) {
     if (!transcripts.length) return [];
-
     const groups = [];
     let current = null;
-
     for (const entry of transcripts) {
         const sameSpeaker = current && current.speaker === entry.speaker;
         const sameLang = current && current.languageCode === entry.languageCode;
-        const timeDiff = current
-            ? Math.abs(parseTimestamp(entry.timestamp) - parseTimestamp(current.lastTimestamp))
-            : Infinity;
+        const timeDiff = current ? Math.abs(parseTimestamp(entry.timestamp) - parseTimestamp(current.lastTimestamp)) : Infinity;
         const withinTimeWindow = timeDiff < TIME_GAP_FOR_NEW_PARAGRAPH_S;
 
         if (sameSpeaker && sameLang && withinTimeWindow) {
@@ -57,14 +53,10 @@ function groupTranscripts(transcripts) {
         } else {
             if (current) groups.push(current);
             current = {
-                speaker: entry.speaker,
-                speakerImage: entry.speakerImage || null,
+                speaker: entry.speaker, speakerImage: entry.speakerImage || null,
                 languageCode: entry.languageCode,
-                firstTimestamp: entry.timestamp,
-                lastTimestamp: entry.timestamp,
-                texts: [entry.text],
-                id: entry.id,
-                lastId: entry.id,
+                firstTimestamp: entry.timestamp, lastTimestamp: entry.timestamp,
+                texts: [entry.text], id: entry.id, lastId: entry.id,
             };
         }
     }
@@ -72,14 +64,12 @@ function groupTranscripts(transcripts) {
     return groups;
 }
 
-export default function TranscriptFeed({ transcripts, isLive, onClosePanel }) {
+export default function TranscriptFeed({ transcripts, isLive, onClosePanel, onPinResource, pins = [] }) {
     const listRef = useRef(null);
     const [collapsed, setCollapsed] = useState(false);
 
     useEffect(() => {
-        if (listRef.current) {
-            listRef.current.scrollTop = listRef.current.scrollHeight;
-        }
+        if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
     }, [transcripts.length]);
 
     const groups = useMemo(() => groupTranscripts(transcripts), [transcripts]);
@@ -92,7 +82,7 @@ export default function TranscriptFeed({ transcripts, isLive, onClosePanel }) {
                     <span className="section-title">Live Transcript</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                    {isLive && <span className="chip chip-emerald" style={{ fontSize: '10px' }}>● LIVE</span>}
+                    {isLive && <span className="chip chip-emerald" style={{ fontSize: '10px' }}>LIVE</span>}
                     <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
                         {transcripts.length} segment{transcripts.length !== 1 ? 's' : ''}
                     </span>
@@ -102,9 +92,8 @@ export default function TranscriptFeed({ transcripts, isLive, onClosePanel }) {
                             <button
                                 className="btn-icon"
                                 onClick={(e) => { e.stopPropagation(); onClosePanel(); }}
-                                id="btn-close-right-panel"
                             >
-                                <Icon icon={SidebarRightIcon} size={14} />
+                                <Icon icon={SidebarRightIcon} size={16} />
                             </button>
                         </ShortcutTooltip>
                     )}
@@ -115,23 +104,15 @@ export default function TranscriptFeed({ transcripts, isLive, onClosePanel }) {
                 <div className="transcript-list" ref={listRef}>
                     {groups.map((group, gi) => {
                         const color = getSpeakerColor(group.speaker);
+                        const groupPins = pins.filter(p => p.transcriptTimestamp === group.firstTimestamp);
+
                         return (
-                            <div
-                                key={group.id}
-                                className="transcript-group animate-in"
-                                style={{ animationDelay: `${gi * 0.04}s` }}
-                            >
-                                <div
-                                    className="transcript-group-bar"
-                                    style={{ backgroundColor: color }}
-                                />
+                            <div key={group.id} className="transcript-group animate-in" style={{ animationDelay: `${gi * 0.04}s` }}>
+                                <div className="transcript-group-bar" style={{ backgroundColor: color }} />
                                 <div className="transcript-group-content">
                                     <div className="transcript-header">
                                         <div className="transcript-speaker-row">
-                                            <div
-                                                className="transcript-avatar"
-                                                style={{ backgroundColor: group.speakerImage ? 'transparent' : color }}
-                                            >
+                                            <div className="transcript-avatar" style={{ backgroundColor: group.speakerImage ? 'transparent' : color }}>
                                                 {group.speakerImage
                                                     ? <img src={`${SERVER_BASE}${group.speakerImage}`} alt="" className="transcript-avatar-img" />
                                                     : (group.speaker?.charAt(0) || '?')
@@ -144,19 +125,35 @@ export default function TranscriptFeed({ transcripts, isLive, onClosePanel }) {
                                         </div>
                                         <div className="transcript-badges">
                                             {group.languageCode && (
-                                                <span className="chip" style={{ padding: '2px 6px', fontSize: '9px' }}>
-                                                    {group.languageCode}
-                                                </span>
+                                                <span className="chip" style={{ padding: '2px 6px', fontSize: '9px' }}>{group.languageCode}</span>
                                             )}
                                         </div>
                                     </div>
 
-                                    <p className="transcript-text" id={`transcript-${group.id}`}>
-                                        {group.texts.join(' ')}
-                                    </p>
+                                    <p className="transcript-text">{group.texts.join(' ')}</p>
+
+                                    {groupPins.length > 0 && (
+                                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                                            {groupPins.map(pin => (
+                                                <a
+                                                    key={pin.id}
+                                                    href={pin.url || '#'}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="chip chip-cyan"
+                                                    style={{ fontSize: '0.5625rem', textDecoration: 'none', cursor: 'pointer' }}
+                                                >
+                                                    <Icon icon={PinIcon} size={8} /> {pin.label || pin.type}
+                                                </a>
+                                            ))}
+                                        </div>
+                                    )}
 
                                     <div className="transcript-actions">
-                                        <button className="transcript-action-btn" id={`pin-${group.id}`}>
+                                        <button
+                                            className="transcript-action-btn"
+                                            onClick={() => onPinResource?.(group.firstTimestamp)}
+                                        >
                                             <Icon icon={PinIcon} size={12} />
                                             Pin Resource
                                         </button>

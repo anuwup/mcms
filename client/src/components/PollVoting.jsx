@@ -19,7 +19,7 @@ export default function PollVoting({ meetingId, onClose }) {
     const [poll, setPoll] = useState(null);
     const [meetingTitle, setMeetingTitle] = useState('');
     const [modality, setModality] = useState('');
-    const [jitsiUrl, setJitsiUrl] = useState('');
+    const [meetingUrl, setMeetingUrl] = useState('');
     const [selectedSlot, setSelectedSlot] = useState(null);
     const [hasVoted, setHasVoted] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -39,7 +39,7 @@ export default function PollVoting({ meetingId, onClose }) {
                 setPoll(data);
                 setMeetingTitle(data.meetingTitle || '');
                 setModality(data.modality || '');
-                setJitsiUrl(data.jitsiUrl || '');
+                setMeetingUrl(data.meetingUrl || '');
 
                 const myVoteIdx = data.slots?.findIndex(s =>
                     s.votes?.some(v => (v._id || v).toString() === user._id.toString())
@@ -88,7 +88,7 @@ export default function PollVoting({ meetingId, onClose }) {
             setPoll(data.poll);
             setHasVoted(true);
             if (data.resolved && data.meeting) {
-                setJitsiUrl(data.meeting.jitsiUrl || '');
+                setMeetingUrl(data.meeting?.meetingUrl || '');
             }
         } catch (err) {
             setError(err.message);
@@ -99,7 +99,7 @@ export default function PollVoting({ meetingId, onClose }) {
 
     const handleCopyLink = async () => {
         try {
-            await navigator.clipboard.writeText(jitsiUrl);
+            await navigator.clipboard.writeText(meetingUrl);
             setLinkCopied(true);
             setTimeout(() => setLinkCopied(false), 2000);
         } catch { /* ignore */ }
@@ -128,7 +128,6 @@ export default function PollVoting({ meetingId, onClose }) {
 
                         {isResolved && (
                             <div className="poll-resolved-banner">
-                                <Icon icon={Tick01Icon} size={16} />
                                 Meeting time confirmed!
                             </div>
                         )}
@@ -156,8 +155,7 @@ export default function PollVoting({ meetingId, onClose }) {
                                                 </div>
                                                 <div className="poll-slot-info">
                                                     <span className="poll-slot-date">
-                                                        <Icon icon={Calendar02Icon} size={12} />
-                                                        {slot.date}
+                                                        {new Date(slot.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                                                     </span>
                                                     <span className="poll-slot-time">{slot.time}</span>
                                                 </div>
@@ -177,14 +175,14 @@ export default function PollVoting({ meetingId, onClose }) {
                             {totalVotes} total vote{totalVotes !== 1 ? 's' : ''}
                         </div>
 
-                        {isResolved && jitsiUrl && modality !== 'Offline' && (
+                        {isResolved && meetingUrl && modality !== 'Offline' && (
                             <div className="jitsi-link-card" style={{ marginTop: '1rem' }}>
                                 <div className="jitsi-link-label">
                                     <Icon icon={Link01Icon} size={14} />
                                     Meeting Link
                                 </div>
                                 <div className="jitsi-link-row">
-                                    <span className="jitsi-link-url">{jitsiUrl}</span>
+                                    <span className="jitsi-link-url">{meetingUrl}</span>
                                     <button className={`btn btn-sm ${linkCopied ? 'btn-success' : 'btn-secondary'}`} onClick={handleCopyLink}>
                                         <Icon icon={linkCopied ? Tick01Icon : Copy01Icon} size={14} />
                                         {linkCopied ? 'Copied' : 'Copy'}

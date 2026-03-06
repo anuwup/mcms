@@ -1,30 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import Icon from './Icon';
 import {
-  Mic01Icon,
-  MicOff01Icon,
-  Video01Icon,
-  VideoOffIcon,
-  ComputerScreenShareIcon,
-  QrCodeIcon,
-  UserGroupIcon,
-  RecordIcon,
-  Cancel01Icon,
+    Mic01Icon, MicOff01Icon, Video01Icon, VideoOffIcon,
+    ComputerScreenShareIcon, QrCodeIcon, UserGroupIcon,
+    RecordIcon, Cancel01Icon, StopIcon,
 } from '@hugeicons/core-free-icons';
 import QROverlay from './QROverlay';
 import { useSocket } from '../context/SocketContext';
 
 export default function HostControls({
-    meetingId,
-    meetingTitle,
-    audioEnabled,
-    videoEnabled,
-    screenSharing,
-    onToggleAudio,
-    onToggleVideo,
-    onToggleScreenShare,
-    onLeave,
-    hasJoined,
+    meetingId, meetingTitle,
+    audioEnabled, videoEnabled, screenSharing,
+    onToggleAudio, onToggleVideo, onToggleScreenShare,
+    onLeave, hasJoined, onMeetingEnded,
 }) {
     const { socket } = useSocket();
     const [recording, setRecording] = useState(false);
@@ -51,6 +39,13 @@ export default function HostControls({
         }
     }, [socket, meetingId, recording]);
 
+    const handleEndMeeting = useCallback(() => {
+        if (!socket || !meetingId) return;
+        if (recording) socket.emit('stop_transcription', { meetingId });
+        socket.emit('end_meeting', { meetingId });
+        onMeetingEnded?.();
+    }, [socket, meetingId, recording, onMeetingEnded]);
+
     return (
         <>
             <div className="host-controls">
@@ -60,7 +55,6 @@ export default function HostControls({
                         data-tooltip={audioEnabled ? 'Mute' : 'Unmute'}
                         onClick={onToggleAudio}
                         disabled={!hasJoined}
-                        id="btn-mute"
                     >
                         <Icon icon={audioEnabled ? Mic01Icon : MicOff01Icon} size={18} />
                     </button>
@@ -70,7 +64,6 @@ export default function HostControls({
                         data-tooltip={videoEnabled ? 'Turn off camera' : 'Turn on camera'}
                         onClick={onToggleVideo}
                         disabled={!hasJoined}
-                        id="btn-video"
                     >
                         <Icon icon={videoEnabled ? Video01Icon : VideoOffIcon} size={18} />
                     </button>
@@ -80,7 +73,6 @@ export default function HostControls({
                         data-tooltip={screenSharing ? 'Stop sharing' : 'Share screen'}
                         onClick={onToggleScreenShare}
                         disabled={!hasJoined}
-                        id="btn-screen-share"
                     >
                         <Icon icon={ComputerScreenShareIcon} size={18} />
                     </button>
@@ -91,37 +83,49 @@ export default function HostControls({
                         className={`control-btn ${recording ? 'recording' : ''}`}
                         onClick={toggleRecording}
                         disabled={!hasJoined}
-                        id="btn-record"
                     >
                         <Icon icon={RecordIcon} size={16} />
                         <span>{recording ? 'Recording' : 'Record'}</span>
                         {recording && <div className="rec-dot"></div>}
                     </button>
 
-                    <button
-                        className="control-btn"
-                        onClick={() => setShowQR(true)}
-                        id="btn-qr-attendance"
-                    >
+                    <button className="control-btn" onClick={() => setShowQR(true)}>
                         <Icon icon={QrCodeIcon} size={16} />
                         <span>Attendance</span>
                     </button>
 
-                    <button className="control-btn" id="btn-participants">
+                    <button className="control-btn" disabled>
                         <Icon icon={UserGroupIcon} size={16} />
                         <span>Participants</span>
                     </button>
                 </div>
 
-                {hasJoined && (
-                    <button className="btn btn-danger" id="btn-end-meeting" onClick={onLeave} style={{ fontSize: '12px', padding: '8px 16px' }}>
-                        <Icon icon={Cancel01Icon} size={14} />
-                        <span style={{ marginLeft: '4px' }}>Leave</span>
-                    </button>
-                )}
+                <div style={{ display: 'flex', gap: '6px' }}>
+                    {hasJoined && (
+                        <>
+                            <button
+                                className="btn btn-danger"
+                                onClick={handleEndMeeting}
+                                style={{ fontSize: '12px', padding: '8px 16px' }}
+                                title="End meeting for all"
+                            >
+                                <Icon icon={StopIcon} size={14} />
+                                <span style={{ marginLeft: '4px' }}>End</span>
+                            </button>
+                            <button
+                                className="btn btn-secondary"
+                                onClick={onLeave}
+                                style={{ fontSize: '12px', padding: '8px 16px' }}
+                            >
+                                <Icon icon={Cancel01Icon} size={14} />
+                                <span style={{ marginLeft: '4px' }}>Leave</span>
+                            </button>
+                        </>
+                    )}
+                </div>
             </div>
 
-            {showQR && <QROverlay onClose={() => setShowQR(false)} meetingTitle={meetingTitle} />}
+            {showQR && <QROverlay onClose={() => setShowQR(false)} meetingTitle={meetingTitle} meetingId={meetingId} />}
         </>
     );
 }

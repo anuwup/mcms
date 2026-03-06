@@ -1,0 +1,276 @@
+import { useState, useEffect, useCallback } from 'react';
+import Icon from './Icon';
+import {
+    Search01Icon, Calendar02Icon, UserIcon,
+    ArrowDown01Icon, ArrowUp01Icon, Clock01Icon,
+    FlashIcon, PinIcon, Notebook01Icon,
+} from '@hugeicons/core-free-icons';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    return `${d.getDate()} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()}`;
+}
+
+export default function ArchiveView({ fetchWithAuth }) {
+    const [query, setQuery] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+    const [results, setResults] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [selectedMeeting, setSelectedMeeting] = useState(null);
+    const [detail, setDetail] = useState(null);
+    const [summaries, setSummaries] = useState({});
+    const [loadingSummary, setLoadingSummary] = useState(false);
+
+    const search = useCallback(async () => {
+        setLoading(true);
+        try {
+            const params = new URLSearchParams();
+            if (query.trim()) params.set('q', query.trim());
+            if (dateFrom) params.set('dateFrom', dateFrom);
+            if (dateTo) params.set('dateTo', dateTo);
+
+            const res = await (fetchWithAuth || fetch)(`${API_BASE}/archive?${params.toString()}`);
+            if (res.ok) setResults(await res.json());
+        } catch (err) {
+            console.error('Archive search failed:', err);
+        }
+        setLoading(false);
+    }, [query, dateFrom, dateTo, fetchWithAuth]);
+
+    useEffect(() => { search(); }, []);
+
+    const loadDetail = async (meetingId) => {
+        setSelectedMeeting(meetingId);
+        try {
+            const res = await (fetchWithAuth || fetch)(`${API_BASE}/archive/${meetingId}`);
+            if (res.ok) setDetail(await res.json());
+        } catch (err) {
+            console.error('Failed to load archive detail:', err);
+        }
+    };
+
+    const loadSummary = async (meetingId) => {
+        setLoadingSummary(true);
+        try {
+            const res = await (fetchWithAuth || fetch)(`${API_BASE}/archive/${meetingId}/summary`);
+            if (res.ok) {
+                const data = await res.json();
+                setSummaries(data.summaries || {});
+            }
+        } catch (err) {
+            console.error('Failed to load summary:', err);
+        }
+        setLoadingSummary(false);
+    };
+
+    if (selectedMeeting && detail) {
+        return (
+            <div style={{ flex: 1, overflow: 'auto', padding: '1.5rem' }}>
+                <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => { setSelectedMeeting(null); setDetail(null); setSummaries({}); }}
+                    style={{ marginBottom: '1rem' }}
+                >
+                    Back to Archives
+                </button>
+
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                    {detail.meeting.title}
+                </h2>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                    <Icon icon={Calendar02Icon} size={12} /> {formatDate(detail.meeting.date)}
+                    {detail.meeting.time && <> &middot; <Icon icon={Clock01Icon} size={12} /> {detail.meeting.time}</>}
+                    &middot; <Icon icon={UserIcon} size={12} /> {detail.meeting.host}
+                </p>
+
+                {!Object.keys(summaries).length && (
+                    <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => loadSummary(selectedMeeting)}
+                        disabled={loadingSummary}
+                        style={{ marginBottom: '1rem' }}
+                    >
+                        {loadingSummary ? 'Generating...' : 'Generate Key Point Summaries'}
+                    </button>
+                )}
+
+                {detail.agendaItems.length > 0 && (
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                            <Icon icon={Notebook01Icon} size={14} /> Agenda & Transcript
+                        </h3>
+                        {detail.agendaItems.map((item, idx) => {
+                            const segments = detail.transcriptsByAgenda[item.id] || [];
+                            const summary = summaries[item.id];
+                            return (
+                                <AgendaSection key={item.id} item={item} index={idx} segments={segments} summary={summary} />
+                            );
+                        })}
+
+                        {detail.transcriptsByAgenda._unlinked?.length > 0 && (
+                            <AgendaSection
+                                item={{ id: '_unlinked', title: 'Unlinked Segments', duration: 0 }}
+                                index={-1}
+                                segments={detail.transcriptsByAgenda._unlinked}
+                            />
+                        )}
+                    </div>
+                )}
+
+                {detail.actionItems.length > 0 && (
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                            <Icon icon={FlashIcon} size={14} /> Action Items
+                        </h3>
+                        {detail.actionItems.map(item => (
+                            <div key={item.id} className="glass-card" style={{ padding: '8px 12px', marginBottom: '6px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8125rem' }}>
+                                    <span className={`chip ${item.status === 'completed' ? 'chip-emerald' : 'chip-amber'}`} style={{ fontSize: '0.5625rem' }}>
+                                        {item.status}
+                                    </span>
+                                    <span style={{ fontWeight: 500 }}>{item.title}</span>
+                                    <span style={{ color: 'var(--text-muted)', marginLeft: 'auto', fontSize: '0.75rem' }}>
+                                        {item.assignee}
+                                    </span>
+                                    {item.source === 'ai-extracted' && (
+                                        <span className="chip chip-purple" style={{ fontSize: '0.5rem' }}>AI</span>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {detail.pins.length > 0 && (
+                    <div>
+                        <h3 style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                            <Icon icon={PinIcon} size={14} /> Resource Pins
+                        </h3>
+                        {detail.pins.map(pin => (
+                            <div key={pin.id} className="glass-card" style={{ padding: '8px 12px', marginBottom: '6px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8125rem' }}>
+                                    <span className="chip chip-cyan" style={{ fontSize: '0.5625rem' }}>{pin.type}</span>
+                                    <a href={pin.url || '#'} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 500, color: 'var(--primary)' }}>
+                                        {pin.label || pin.url || 'Code snippet'}
+                                    </a>
+                                    <span style={{ color: 'var(--text-muted)', marginLeft: 'auto', fontSize: '0.6875rem' }}>
+                                        at {pin.transcriptTimestamp || '—'}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div className="archive-container">
+            <div className="page-header">
+                <h2 style={{ fontSize: 'var(--font-size-title3)', fontWeight: 700, marginBottom: 'var(--lk-size-2xs)', letterSpacing: '-0.022em' }}>Meeting Archives</h2>
+                <p style={{ fontSize: 'var(--font-size-body)', color: 'var(--text-secondary)', marginBottom: 'calc(var(--lk-size-sm) * var(--font-size-title3)/1rem)' }}>Search and browse past meeting transcripts, summaries, and action items.</p>
+            </div>
+
+            <div className="archive-search-bar">
+                <div className="archive-search-input-wrap">
+                    <Icon icon={Search01Icon} size={14} className="archive-search-icon" />
+                    <input
+                        className="input-field"
+                        placeholder="Search transcripts, agenda titles, keywords..."
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && search()}
+                    />
+                </div>
+                <input
+                    type="date"
+                    className="input-field archive-date-input"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                />
+                <input
+                    type="date"
+                    className="input-field archive-date-input"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                />
+                <button className="btn btn-primary btn-sm" onClick={search}>Search</button>
+            </div>
+
+            {loading ? (
+                <p style={{ color: 'var(--text-muted)' }}>Searching...</p>
+            ) : (
+                <div className="meeting-list">
+                    {results.map(meeting => (
+                        <div
+                            key={meeting.id}
+                            className="meeting-card glass-card"
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => loadDetail(meeting.id)}
+                        >
+                            <div className="meeting-card-title">{meeting.title}</div>
+                            <div className="meeting-card-meta">
+                                {meeting.date && <span><Icon icon={Calendar02Icon} size={14} /> {formatDate(meeting.date)}</span>}
+                                <span><Icon icon={UserIcon} size={14} /> {meeting.host}</span>
+                                <span className="chip chip-emerald">Completed</span>
+                            </div>
+                            {meeting.matchedTranscripts?.length > 0 && (
+                                <div style={{ marginTop: '6px' }}>
+                                    {meeting.matchedTranscripts.map((t, i) => (
+                                        <p key={i} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0', lineHeight: 1.4 }}>
+                                            <strong>{t.speaker}:</strong> {t.text.length > 120 ? t.text.slice(0, 120) + '...' : t.text}
+                                        </p>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                    {results.length === 0 && !loading && (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No completed meetings found.</p>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function AgendaSection({ item, index, segments, summary }) {
+    const [expanded, setExpanded] = useState(false);
+    return (
+        <div className="glass-card" style={{ padding: '10px 14px', marginBottom: '8px' }}>
+            <div
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                onClick={() => setExpanded(e => !e)}
+            >
+                {index >= 0 && <span style={{ fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-muted)' }}>{index + 1}.</span>}
+                <span style={{ fontWeight: 500, fontSize: '0.8125rem', flex: 1 }}>{item.title}</span>
+                {item.duration > 0 && <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>{item.duration}m</span>}
+                <span style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>{segments.length} segment{segments.length !== 1 ? 's' : ''}</span>
+                <Icon icon={expanded ? ArrowUp01Icon : ArrowDown01Icon} size={12} />
+            </div>
+
+            {summary && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--accent-emerald)', marginTop: '6px', fontStyle: 'italic' }}>
+                    {summary}
+                </p>
+            )}
+
+            {expanded && segments.length > 0 && (
+                <div style={{ marginTop: '8px', paddingLeft: '12px', borderLeft: '2px solid var(--border)' }}>
+                    {segments.map(seg => (
+                        <div key={seg.id} style={{ marginBottom: '6px' }}>
+                            <span style={{ fontWeight: 600, fontSize: '0.75rem' }}>{seg.speaker}</span>
+                            <span style={{ fontSize: '0.625rem', color: 'var(--text-muted)', marginLeft: '6px' }}>{seg.timestamp}</span>
+                            <p style={{ fontSize: '0.75rem', margin: '2px 0 0', lineHeight: 1.4 }}>{seg.text}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}

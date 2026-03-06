@@ -102,6 +102,7 @@ export default function VideoArea({
   rightPanelOpen,
   onToggleAgendaPanel,
   onToggleRightPanel,
+  onMeetingEnded,
 }) {
   const { socket, connected } = useSocket();
   const {
@@ -277,6 +278,7 @@ export default function VideoArea({
         onToggleScreenShare={toggleScreenShare}
         onLeave={handleLeave}
         hasJoined={hasJoined}
+        onMeetingEnded={onMeetingEnded}
       />
 
       <style>{`
