@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from './Icon';
 import {
   Mic01Icon,
@@ -21,27 +21,50 @@ export default function HostControls({ meetingId, meetingTitle }) {
     const [videoOn, setVideoOn] = useState(true);
     const [sharing, setSharing] = useState(false);
     const [showQR, setShowQR] = useState(false);
+    const [transcriptionError, setTranscriptionError] = useState(null);
+    const errorDismissRef = useRef(null);
+
+    const mid = meetingId != null ? String(meetingId) : null;
+
+    useEffect(() => {
+        if (!transcriptionError) return;
+        errorDismissRef.current = setTimeout(() => setTranscriptionError(null), 8000);
+        return () => { if (errorDismissRef.current) clearTimeout(errorDismissRef.current); };
+    }, [transcriptionError]);
 
     useEffect(() => {
         if (!socket) return;
-        const onStarted = ({ meetingId: mid }) => { if (mid === meetingId) setRecording(true); };
-        const onStopped = ({ meetingId: mid }) => { if (mid === meetingId) setRecording(false); };
+        const onStarted = ({ meetingId: eventMid }) => {
+            if (eventMid != null && mid != null && String(eventMid) === mid) {
+                setRecording(true);
+                setTranscriptionError(null);
+            }
+        };
+        const onStopped = ({ meetingId: eventMid }) => {
+            if (eventMid != null && mid != null && String(eventMid) === mid) setRecording(false);
+        };
+        const onError = ({ message }) => {
+            setTranscriptionError(message || 'Transcription failed');
+        };
         socket.on('transcription_started', onStarted);
         socket.on('transcription_stopped', onStopped);
+        socket.on('transcription_error', onError);
         return () => {
             socket.off('transcription_started', onStarted);
             socket.off('transcription_stopped', onStopped);
+            socket.off('transcription_error', onError);
         };
-    }, [socket, meetingId]);
+    }, [socket, mid]);
 
     const toggleRecording = useCallback(() => {
-        if (!socket || !meetingId) return;
+        if (!socket || !mid) return;
+        setTranscriptionError(null);
         if (recording) {
-            socket.emit('stop_transcription', { meetingId });
+            socket.emit('stop_transcription', { meetingId: mid });
         } else {
-            socket.emit('start_transcription', { meetingId });
+            socket.emit('start_transcription', { meetingId: mid });
         }
-    }, [socket, meetingId, recording]);
+    }, [socket, mid, recording]);
 
     return (
         <>
@@ -76,15 +99,40 @@ export default function HostControls({ meetingId, meetingTitle }) {
 
                     <div className="controls-divider"></div>
 
-                    <button
-                        className={`control-btn ${recording ? 'recording' : ''}`}
-                        onClick={toggleRecording}
-                        id="btn-record"
-                    >
-                        <Icon icon={RecordIcon} size={16} />
-                        <span>{recording ? 'Recording' : 'Record'}</span>
-                        {recording && <div className="rec-dot"></div>}
-                    </button>
+                    <div style={{ position: 'relative' }}>
+                        {transcriptionError && (
+                            <div
+                                className="host-controls-error"
+                                role="alert"
+                                style={{
+                                    position: 'absolute',
+                                    bottom: '100%',
+                                    left: 0,
+                                    marginBottom: '4px',
+                                    padding: '6px 10px',
+                                    background: 'var(--danger, #dc3545)',
+                                    color: '#fff',
+                                    fontSize: '12px',
+                                    borderRadius: 'var(--radius-sm, 4px)',
+                                    whiteSpace: 'nowrap',
+                                    zIndex: 10,
+                                    maxWidth: '280px',
+                                    whiteSpace: 'normal',
+                                }}
+                            >
+                                {transcriptionError}
+                            </div>
+                        )}
+                        <button
+                            className={`control-btn ${recording ? 'recording' : ''}`}
+                            onClick={toggleRecording}
+                            id="btn-record"
+                        >
+                            <Icon icon={RecordIcon} size={16} />
+                            <span>{recording ? 'Recording' : 'Record'}</span>
+                            {recording && <div className="rec-dot"></div>}
+                        </button>
+                    </div>
 
                     <button
                         className="control-btn"

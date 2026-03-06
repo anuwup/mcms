@@ -316,27 +316,31 @@ io.on('connection', (socket) => {
     });
 
     socket.on('start_transcription', ({ meetingId }) => {
+        if (!meetingId) return;
+        const mid = String(meetingId);
         if (!SARVAM_API_KEY) {
             socket.emit('transcription_error', { message: 'Sarvam API key not configured' });
             return;
         }
-        if (meetingTranscriptionState.has(meetingId)) {
+        if (meetingTranscriptionState.has(mid)) {
             socket.emit('transcription_error', { message: 'Transcription already active for this meeting' });
             return;
         }
 
-        meetingTranscriptionState.set(meetingId, { startTime: Date.now(), speakers: new Map() });
-        meetingAudioBuffers.set(meetingId, []);
+        meetingTranscriptionState.set(mid, { startTime: Date.now(), speakers: new Map() });
+        meetingAudioBuffers.set(mid, []);
 
-        io.to(`meeting:${meetingId}`).emit('transcription_started', { meetingId });
-        console.log(`🎙️  Transcription started for meeting ${meetingId} by user ${socket.userId}`);
+        io.to(`meeting:${mid}`).emit('transcription_started', { meetingId: mid });
+        console.log(`🎙️  Transcription started for meeting ${mid} by user ${socket.userId}`);
     });
 
     socket.on('join_transcription', async ({ meetingId, speakerName, speakerImage }) => {
-        const meeting = meetingTranscriptionState.get(meetingId);
+        if (!meetingId) return;
+        const mid = String(meetingId);
+        const meeting = meetingTranscriptionState.get(mid);
         if (!meeting) return;
         if (meeting.speakers.has(socket.userId)) {
-            socket.emit('transcription_ready', { meetingId });
+            socket.emit('transcription_ready', { meetingId: mid });
             return;
         }
 
@@ -346,26 +350,27 @@ io.on('connection', (socket) => {
             try {
                 const u = await User.findById(socket.userId).select('name profileImage');
                 if (u) {
-                    openSpeakerSarvamWS(meetingId, socket.userId, u.name || name, u.profileImage || image);
-                    socket.emit('transcription_ready', { meetingId });
-                    console.log(`🎙️  ${u.name} joined transcription for meeting ${meetingId}`);
+                    openSpeakerSarvamWS(mid, socket.userId, u.name || name, u.profileImage || image);
+                    socket.emit('transcription_ready', { meetingId: mid });
+                    console.log(`🎙️  ${u.name} joined transcription for meeting ${mid}`);
                     return;
                 }
             } catch (_) {}
         }
-        openSpeakerSarvamWS(meetingId, socket.userId, name, image);
-        socket.emit('transcription_ready', { meetingId });
-        console.log(`🎙️  ${name} joined transcription for meeting ${meetingId}`);
+        openSpeakerSarvamWS(mid, socket.userId, name, image);
+        socket.emit('transcription_ready', { meetingId: mid });
+        console.log(`🎙️  ${name} joined transcription for meeting ${mid}`);
     });
 
     socket.on('audio_chunk', ({ meetingId, data }) => {
         if (!meetingId || !data) return;
+        const mid = String(meetingId);
 
         const buffer = Buffer.from(data, 'base64');
-        const chunks = meetingAudioBuffers.get(meetingId);
+        const chunks = meetingAudioBuffers.get(mid);
         if (chunks) chunks.push(buffer);
 
-        const speaker = getSpeakerState(meetingId, socket.userId);
+        const speaker = getSpeakerState(mid, socket.userId);
         if (!speaker) return;
 
         const payload = JSON.stringify({
@@ -380,18 +385,20 @@ io.on('connection', (socket) => {
     });
 
     socket.on('leave_transcription', async ({ meetingId }) => {
-        await closeSpeakerSarvam(meetingId, socket.userId);
+        if (meetingId) await closeSpeakerSarvam(String(meetingId), socket.userId);
     });
 
     socket.on('stop_transcription', async ({ meetingId }) => {
-        await closeAllSpeakerConnections(meetingId);
-        const audioPath = saveAudioBuffer(meetingId);
+        if (!meetingId) return;
+        const mid = String(meetingId);
+        await closeAllSpeakerConnections(mid);
+        const audioPath = saveAudioBuffer(mid);
 
-        io.to(`meeting:${meetingId}`).emit('transcription_stopped', {
-            meetingId,
+        io.to(`meeting:${mid}`).emit('transcription_stopped', {
+            meetingId: mid,
             hasRecording: !!audioPath,
         });
-        console.log(`🎙️  Transcription stopped for meeting ${meetingId}`);
+        console.log(`🎙️  Transcription stopped for meeting ${mid}`);
     });
 
     // ── WebRTC Signaling ──────────────────────────────────────
