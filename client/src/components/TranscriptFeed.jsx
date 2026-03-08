@@ -100,7 +100,8 @@ export default function TranscriptFeed({ transcripts, isLive, onClosePanel, onPi
                 </div>
             </div>
 
-            {!collapsed && (
+            <div className={`collapsible-body ${collapsed ? 'collapsed' : ''}`}>
+                <div className="collapsible-body-inner">
                 <div className="transcript-list" ref={listRef}>
                     {groups.map((group, gi) => {
                         const color = getSpeakerColor(group.speaker);
@@ -170,7 +171,8 @@ export default function TranscriptFeed({ transcripts, isLive, onClosePanel, onPi
                         </div>
                     )}
                 </div>
-            )}
+                </div>
+            </div>
         </div>
     );
 }

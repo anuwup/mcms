@@ -29,16 +29,17 @@ export default function LiveOutcome({ agendaItems = [], actionItems = [], transc
 
     return (
         <div className="live-outcome">
-            <div className="section-header collapsible-header" style={{ borderTop: '0.0625rem solid var(--border)' }} onClick={() => setCollapsed(c => !c)}>
+            <div className="section-header collapsible-header" onClick={() => setCollapsed(c => !c)}>
                 <div className="section-title-container">
                     <Icon icon={EyeIcon} size={14} />
                     <span className="section-title">Live Outcome Preview</span>
-                    <span className="chip chip-purple" style={{ fontSize: '0.625rem' }}>DOPPELGANGER</span>
+                    <span className="chip chip-purple">DOPPELGANGER</span>
                 </div>
                 <Icon icon={collapsed ? ArrowDown01Icon : ArrowUp01Icon} size={14} />
             </div>
 
-            {!collapsed && (
+            <div className={`collapsible-body ${collapsed ? 'collapsed' : ''}`}>
+                <div className="collapsible-body-inner">
                 <div className="outcome-content">
                     <div className="outcome-score">
                         <div className="score-circle">
@@ -84,7 +85,8 @@ export default function LiveOutcome({ agendaItems = [], actionItems = [], transc
                         )}
                     </div>
                 </div>
-            )}
+                </div>
+            </div>
         </div>
     );
 }

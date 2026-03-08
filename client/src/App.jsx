@@ -69,7 +69,7 @@ function DashboardApp() {
   }, []);
 
   const shortcuts = useMemo(() => [
-    { key: 'k', mod: true, handler: () => searchInputRef.current?.focus(), allowInInput: true },
+    { key: 'k', mod: true, handler: () => { const el = searchInputRef.current; if (document.activeElement === el) el?.blur(); else el?.focus(); }, allowInInput: true },
     { key: 'b', mod: true, handler: () => setSidebarCollapsed(prev => !prev), allowInInput: true },
     { key: 'M', shift: true, handler: () => setShowCreateMeeting(true) },
     { key: 'd', handler: () => setTheme(prev => prev === 'dark' ? 'light' : 'dark') },
@@ -338,7 +338,7 @@ function DashboardApp() {
         return (
           <div style={{ flex: 1, overflow: "auto" }}>
             <div className="page-header">
-				<h2 style={{ fontSize: 'var(--font-size-title3)', fontWeight: 700, marginBottom: 'var(--lk-size-2xs)', letterSpacing: '-0.022em' }}>Scheduled Meetings</h2>
+				<h2 style={{ fontSize: 'var(--font-size-title3)', fontWeight: 600, marginBottom: 'var(--lk-size-2xs)', letterSpacing: '-0.022em' }}>Scheduled Meetings</h2>
 			</div>
             <div className="meeting-list">
               {meetings.map(meeting => (
@@ -407,6 +407,7 @@ function DashboardApp() {
         onOpenPoll={(meetingId) => setPollMeetingId(meetingId)}
         searchInputRef={searchInputRef}
         onViewChange={setCurrentView}
+        onSearchResultSelect={(meeting) => { setSelectedMeeting(meeting); setCurrentView('meeting'); }}
       />
 
       <div className="main-area">

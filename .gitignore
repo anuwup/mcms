@@ -1,1 +1,3 @@
 node_modules
+server/uploads/avatars/*
+!server/uploads/avatars/.gitkeep

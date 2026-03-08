@@ -227,7 +227,7 @@ export default function AgendaPanel({ agendaItems, meetingId, isHost, onItemChan
                 </div>
             ) : (
                 <button
-                    className="btn btn-primary"
+                    className="btn btn-secondary"
                     style={{ margin: '0 var(--lk-size-sm)', width: 'calc(100% - 2 * var(--lk-size-sm))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     onClick={() => setAddingItem(true)}
                 >

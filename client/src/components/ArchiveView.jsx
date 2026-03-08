@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from './Icon';
 import {
     Search01Icon, Calendar02Icon, UserIcon,
     ArrowDown01Icon, ArrowUp01Icon, Clock01Icon,
     FlashIcon, PinIcon, Notebook01Icon,
 } from '@hugeicons/core-free-icons';
+import * as chrono from 'chrono-node';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -14,22 +15,74 @@ function formatDate(dateStr) {
     return `${d.getDate()} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()}`;
 }
 
+/** Parse natural language date range from search input. Returns { textQuery, dateFrom, dateTo }. */
+function parseArchiveSearchInput(input) {
+    const trimmed = input.trim();
+    const now = new Date();
+    if (!trimmed) return { textQuery: '', dateFrom: null, dateTo: null };
+
+    const parsed = chrono.parse(trimmed, now);
+    let textQuery = trimmed;
+    let dateFrom = null;
+    let dateTo = null;
+
+    for (const p of parsed) {
+        textQuery = textQuery.replace(p.text, ' ');
+    }
+    textQuery = textQuery.replace(/\b(from|since|till|to|until)\b\s*/gi, '').replace(/\s+/g, ' ').trim();
+
+    const lower = trimmed.toLowerCase();
+    const hasFrom = /\b(from|since)\b/.test(lower);
+    const hasTo = /\b(till|to|until)\b/.test(lower);
+
+    if (parsed.length >= 2) {
+        dateFrom = parsed[0].start.date();
+        dateTo = parsed[1].start.date();
+        if (dateFrom > dateTo) [dateFrom, dateTo] = [dateTo, dateFrom];
+    } else if (parsed.length === 1) {
+        const p = parsed[0];
+        const d = p.start.date();
+        const startOfDay = (dt) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 0, 0, 0);
+        const endOfDay = (dt) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 23, 59, 59);
+
+        if (p.end) {
+            dateFrom = startOfDay(p.start.date());
+            dateTo = endOfDay(p.end.date());
+        } else if (hasFrom && !hasTo) {
+            dateFrom = startOfDay(d);
+        } else if (hasTo && !hasFrom) {
+            dateTo = endOfDay(d);
+        } else {
+            dateFrom = startOfDay(d);
+            dateTo = endOfDay(d);
+        }
+    }
+
+    return {
+        textQuery,
+        dateFrom: dateFrom ? dateFrom.toISOString().slice(0, 10) : null,
+        dateTo: dateTo ? dateTo.toISOString().slice(0, 10) : null,
+    };
+}
+
+const SEARCH_DEBOUNCE_MS = 300;
+
 export default function ArchiveView({ fetchWithAuth }) {
     const [query, setQuery] = useState('');
-    const [dateFrom, setDateFrom] = useState('');
-    const [dateTo, setDateTo] = useState('');
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
     const [selectedMeeting, setSelectedMeeting] = useState(null);
     const [detail, setDetail] = useState(null);
     const [summaries, setSummaries] = useState({});
     const [loadingSummary, setLoadingSummary] = useState(false);
+    const debounceRef = useRef(null);
 
-    const search = useCallback(async () => {
+    const search = useCallback(async (searchInput) => {
+        const { textQuery, dateFrom, dateTo } = parseArchiveSearchInput(searchInput);
         setLoading(true);
         try {
             const params = new URLSearchParams();
-            if (query.trim()) params.set('q', query.trim());
+            if (textQuery.trim()) params.set('q', textQuery.trim());
             if (dateFrom) params.set('dateFrom', dateFrom);
             if (dateTo) params.set('dateTo', dateTo);
 
@@ -39,9 +92,13 @@ export default function ArchiveView({ fetchWithAuth }) {
             console.error('Archive search failed:', err);
         }
         setLoading(false);
-    }, [query, dateFrom, dateTo, fetchWithAuth]);
+    }, [fetchWithAuth]);
 
-    useEffect(() => { search(); }, []);
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => search(query), SEARCH_DEBOUNCE_MS);
+        return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    }, [query, search]);
 
     const loadDetail = async (meetingId) => {
         setSelectedMeeting(meetingId);
@@ -172,7 +229,7 @@ export default function ArchiveView({ fetchWithAuth }) {
     return (
         <div className="archive-container">
             <div className="page-header">
-                <h2 style={{ fontSize: 'var(--font-size-title3)', fontWeight: 700, marginBottom: 'var(--lk-size-2xs)', letterSpacing: '-0.022em' }}>Meeting Archives</h2>
+                <h2 style={{ fontSize: 'var(--font-size-title3)', fontWeight: 600, marginBottom: 'var(--lk-size-2xs)', letterSpacing: '-0.022em' }}>Meeting Archives</h2>
                 <p style={{ fontSize: 'var(--font-size-body)', color: 'var(--text-secondary)', marginBottom: 'calc(var(--lk-size-sm) * var(--font-size-title3)/1rem)' }}>Search and browse past meeting transcripts, summaries, and action items.</p>
             </div>
 
@@ -181,25 +238,11 @@ export default function ArchiveView({ fetchWithAuth }) {
                     <Icon icon={Search01Icon} size={14} className="archive-search-icon" />
                     <input
                         className="input-field"
-                        placeholder="Search transcripts, agenda titles, keywords..."
+                        placeholder="Search transcripts, keywords... or filter by date: from last week, since yesterday, till last friday, from last wed to this sat..."
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && search()}
                     />
                 </div>
-                <input
-                    type="date"
-                    className="input-field archive-date-input"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                />
-                <input
-                    type="date"
-                    className="input-field archive-date-input"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                />
-                <button className="btn btn-primary btn-sm" onClick={search}>Search</button>
             </div>
 
             {loading ? (

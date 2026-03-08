@@ -42,7 +42,7 @@ export default function ProductivityDashboard({ stats, userName }) {
         <div className="productivity-dashboard">
             <div className="page-header">
                 <div>
-                    <h2 style={{ fontSize: 'var(--font-size-title3)', fontWeight: 700, marginBottom: 'var(--lk-size-2xs)', letterSpacing: '-0.022em' }}>
+                    <h2 style={{ fontSize: 'var(--font-size-title3)', fontWeight: 600, marginBottom: 'var(--lk-size-2xs)', letterSpacing: '-0.022em' }}>
                         Productivity Dashboard
                     </h2>
                     <p style={{ fontSize: 'var(--font-size-body)', color: 'var(--text-secondary)', marginBottom: 'calc(var(--lk-size-sm) * var(--font-size-title3)/1rem)' }}>

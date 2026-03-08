@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Icon from './Icon';
 import {
     Search01Icon,
@@ -12,6 +12,7 @@ import {
     BarChartIcon,
     Tick01Icon,
     Moon02Icon,
+    Clock01Icon,
 } from '@hugeicons/core-free-icons';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -21,6 +22,14 @@ import ShortcutTooltip from './ShortcutTooltip';
 const _raw = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 const API_BASE = _raw.endsWith('/api') ? _raw : `${_raw}/api`;
 const SERVER_BASE = _raw.replace(/\/api$/, '');
+
+const SEARCH_DEBOUNCE_MS = 280;
+
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    return `${d.getDate()} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()}`;
+}
 
 function SidebarToggleIcon({ collapsed }) {
     return (
@@ -44,16 +53,60 @@ function timeAgo(dateStr) {
     return `${days}d ago`;
 }
 
-export default function TopBar({ streak, userName, onNewMeeting, theme = 'dark', onToggleTheme, sidebarCollapsed, onSidebarToggle, onLogout, onOpenPoll, searchInputRef, onViewChange }) {
+export default function TopBar({ streak, userName, onNewMeeting, theme = 'dark', onToggleTheme, sidebarCollapsed, onSidebarToggle, onLogout, onOpenPoll, searchInputRef, onViewChange, onSearchResultSelect }) {
     const { user } = useAuth();
     const { socket } = useSocket();
     const [showNotif, setShowNotif] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [notifications, setNotifications] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+    const [searchSelectedIndex, setSearchSelectedIndex] = useState(-1);
     const notifRef = useRef(null);
     const userMenuRef = useRef(null);
+    const searchBoxRef = useRef(null);
+    const searchDebounceRef = useRef(null);
 
     const unreadCount = notifications.filter(n => !n.read).length;
+
+    const runSearch = useCallback(async (q) => {
+        const trimmed = (q || '').trim();
+        if (trimmed.length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        setSearchLoading(true);
+        try {
+            const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(trimmed)}`, {
+                headers: { Authorization: `Bearer ${user?.token}` },
+            });
+            if (res.ok) setSearchResults(await res.json());
+            else setSearchResults([]);
+        } catch {
+            setSearchResults([]);
+        }
+        setSearchLoading(false);
+    }, [user?.token]);
+
+    useEffect(() => {
+        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+        if (!searchQuery.trim()) {
+            setSearchResults([]);
+            setShowSearchDropdown(false);
+            setSearchSelectedIndex(-1);
+            return;
+        }
+        setShowSearchDropdown(true);
+        setSearchSelectedIndex(-1);
+        searchDebounceRef.current = setTimeout(() => runSearch(searchQuery), SEARCH_DEBOUNCE_MS);
+        return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+    }, [searchQuery, runSearch]);
+
+    useEffect(() => {
+        setSearchSelectedIndex(-1);
+    }, [searchResults]);
 
     useEffect(() => {
         if (!user?.token) return;
@@ -75,12 +128,30 @@ export default function TopBar({ streak, userName, onNewMeeting, theme = 'dark',
     }, [socket]);
 
     useEffect(() => {
+        function handleNotifKeyDown(e) {
+            const inInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
+            if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey && !inInput) {
+                e.preventDefault();
+                setShowNotif(prev => !prev);
+            }
+            if (e.key === 'Escape') {
+                setShowNotif(false);
+            }
+        }
+        window.addEventListener('keydown', handleNotifKeyDown);
+        return () => window.removeEventListener('keydown', handleNotifKeyDown);
+    }, []);
+
+    useEffect(() => {
         function handleClickOutside(e) {
             if (notifRef.current && !notifRef.current.contains(e.target)) {
                 setShowNotif(false);
             }
             if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
                 setShowUserMenu(false);
+            }
+            if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) {
+                setShowSearchDropdown(false);
             }
         }
         document.addEventListener('mousedown', handleClickOutside);
@@ -122,6 +193,34 @@ export default function TopBar({ streak, userName, onNewMeeting, theme = 'dark',
         }
     };
 
+    const selectSearchResult = useCallback((m) => {
+        onSearchResultSelect?.({ id: m.id, title: m.title, modality: m.modality, date: m.date, time: m.time, host: m.host, hostId: m.hostId, status: m.status, participants: m.participants });
+        setSearchQuery('');
+        setShowSearchDropdown(false);
+        setSearchSelectedIndex(-1);
+    }, [onSearchResultSelect]);
+
+    const handleSearchKeyDown = useCallback((e) => {
+        if (e.key === 'Escape') {
+            setShowSearchDropdown(false);
+            setSearchQuery('');
+            setSearchSelectedIndex(-1);
+            searchInputRef?.current?.blur();
+            return;
+        }
+        if (!showSearchDropdown || searchLoading || searchResults.length === 0) return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setSearchSelectedIndex(i => (i < searchResults.length - 1 ? i + 1 : i));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setSearchSelectedIndex(i => (i <= 0 ? -1 : i - 1));
+        } else if (e.key === 'Enter' && searchSelectedIndex >= 0 && searchResults[searchSelectedIndex]) {
+            e.preventDefault();
+            selectSearchResult(searchResults[searchSelectedIndex]);
+        }
+    }, [showSearchDropdown, searchLoading, searchResults, searchSelectedIndex, selectSearchResult]);
+
     return (
         <header className="topbar">
             <div className="topbar-left">
@@ -135,12 +234,61 @@ export default function TopBar({ streak, userName, onNewMeeting, theme = 'dark',
                 </div>
             </div>
 
-            <div className="topbar-center">
+            <div className="topbar-center" ref={searchBoxRef} style={{ position: 'relative' }}>
                 <div className="search-box">
                     <Icon icon={Search01Icon} size={16} />
-                    <input ref={searchInputRef} type="text" placeholder="Search meetings, agendas, transcripts..." />
+                    <input
+                        ref={searchInputRef}
+                        type="text"
+                        placeholder="Search meetings, agendas, transcripts..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onFocus={() => searchQuery.trim().length >= 2 && setShowSearchDropdown(true)}
+                        onKeyDown={handleSearchKeyDown}
+                    />
                     <Kbd keys={['mod', 'K']} className="kbd-hint" />
                 </div>
+                {showSearchDropdown && searchQuery.trim() && (
+                    <div className="search-dropdown glass-card">
+                        {searchLoading ? (
+                            <div className="search-dropdown-loading">Searching...</div>
+                        ) : searchResults.length === 0 ? (
+                            <div className="search-dropdown-empty">No meetings found</div>
+                        ) : (
+                            <div className="search-dropdown-results">
+                                {searchResults.map((m, idx) => (
+                                    <button
+                                        key={m.id}
+                                        type="button"
+                                        className={`search-dropdown-item${searchSelectedIndex === idx ? ' selected' : ''}`}
+                                        onClick={() => selectSearchResult(m)}
+                                        onMouseEnter={() => setSearchSelectedIndex(idx)}
+                                    >
+                                        <div className="search-dropdown-item-title">{m.title}</div>
+                                        <div className="search-dropdown-item-meta">
+                                            {m.date && <span><Icon icon={Calendar02Icon} size={12} /> {formatDate(m.date)}</span>}
+                                            {m.time && <span><Icon icon={Clock01Icon} size={12} /> {m.time}</span>}
+                                            <span><Icon icon={UserIcon} size={12} /> {m.host}</span>
+                                            {m.status && <span className={`chip ${m.status === 'completed' ? 'chip-emerald' : 'chip-amber'}`} style={{ fontSize: '0.5625rem' }}>{m.status}</span>}
+                                        </div>
+                                        {m.matchedTranscripts?.length > 0 && (
+                                            <div className="search-dropdown-item-snippets">
+                                                {m.matchedTranscripts.slice(0, 2).map((t, i) => (
+                                                    <p key={i}><strong>{t.speaker}:</strong> {t.text.length > 80 ? t.text.slice(0, 80) + '…' : t.text}</p>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {m.matchedAgendaItems?.length > 0 && m.matchedTranscripts?.length === 0 && (
+                                            <div className="search-dropdown-item-snippets">
+                                                <p>Agenda: {m.matchedAgendaItems.map(a => a.title).join(', ')}</p>
+                                            </div>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             <div className="topbar-right">
@@ -156,14 +304,17 @@ export default function TopBar({ streak, userName, onNewMeeting, theme = 'dark',
                 </div>
 
                 <div ref={notifRef} style={{ position: 'relative' }}>
-                    <button
-                        className={`btn-icon ${showNotif ? 'active' : ''}`}
-                        onClick={() => setShowNotif(!showNotif)}
-                        id="btn-notifications"
-                    >
-                        <Icon icon={Notification01Icon} size={18} />
-                        {unreadCount > 0 && <span className="notif-dot">{unreadCount > 9 ? '9+' : unreadCount}</span>}
-                    </button>
+                    <ShortcutTooltip keys={['N']}>
+                        <button
+                            className={`btn-icon tooltip ${showNotif ? 'active' : ''}`}
+                            data-tooltip="Notifications"
+                            onClick={() => setShowNotif(!showNotif)}
+                            id="btn-notifications"
+                        >
+                            <Icon icon={Notification01Icon} size={18} />
+                            {unreadCount > 0 && <span className="notif-dot">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+                        </button>
+                    </ShortcutTooltip>
 
                     {showNotif && (
                         <div className="notification-dropdown">

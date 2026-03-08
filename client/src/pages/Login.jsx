@@ -28,11 +28,11 @@ export default function Login({ onNavigate }) {
         <div className="auth-container">
             <div className="auth-card glass-card animate-in fade-in zoom-in" style={{ animationDuration: '0.5s' }}>
                 <div className="auth-header">
-                    <div className="logo-icon" style={{ marginBottom: '16px' }}>
-                        <span style={{ fontSize: '24px' }}>⌘</span>
+                    <div className="logo-icon" style={{ marginBottom: 'var(--lk-size-sm)' }}>
+                        <span className="brand-name">Concord</span>
                     </div>
-                    <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px' }}>Welcome Back</h1>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Sign in to continue to MCMS Dashboard</p>
+
+                    <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-label)' }}>Meeting and communication management system for power users.</p>
                 </div>
 
                 {error && (

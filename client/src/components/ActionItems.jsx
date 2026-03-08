@@ -85,7 +85,8 @@ export default function ActionItems({ items, meetingId, fetchWithAuth, onRefresh
                 <Icon icon={collapsed ? ArrowDown01Icon : ArrowUp01Icon} size={14} />
             </div>
 
-            {!collapsed && (
+            <div className={`collapsible-body ${collapsed ? 'collapsed' : ''}`}>
+                <div className="collapsible-body-inner">
                 <div className="action-items-list">
                     {items.map((item, index) => {
                         const status = statusConfig[item.status] || statusConfig.pending;
@@ -188,16 +189,17 @@ export default function ActionItems({ items, meetingId, fetchWithAuth, onRefresh
                     ) : (
                         meetingId && (
                             <button
-                                className="btn-icon"
-                                style={{ margin: '0.25rem 0', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)' }}
+                                className="btn btn-secondary"
+                                style={{ margin: '0 var(--lk-size-sm)', width: 'calc(100% - 2 * var(--lk-size-sm))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                 onClick={() => setAdding(true)}
                             >
-                                <Icon icon={Add01Icon} size={12} /> Add Action Item
+                                <Icon icon={Add01Icon} size={16} /> Add Action Item
                             </button>
                         )
                     )}
                 </div>
-            )}
+                </div>
+            </div>
         </div>
     );
 }
