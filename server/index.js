@@ -18,9 +18,18 @@ let Transcript = null, Agenda = null, ActionItem = null, Attendance = null;
 
 try {
     const mongoose = require('mongoose');
-    mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/mcms_db')
+    const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/mcms_db';
+    // If MONGO_PASSWORD is set, replace password in URI with URL-encoded version (fixes special chars like @, #, :)
+    const builtUri = (process.env.MONGO_PASSWORD && mongoUri.includes('mongodb+srv://'))
+        ? mongoUri.replace(/^mongodb\+srv:\/\/([^:]+):[^@]+@/, (_, user) =>
+            `mongodb+srv://${user}:${encodeURIComponent(process.env.MONGO_PASSWORD)}@`)
+        : mongoUri;
+    mongoose.connect(builtUri, { serverSelectionTimeoutMS: 15000 })
         .then(() => { console.log('MongoDB Connected'); usingMongoFlag = true; })
-        .catch(err => console.log('MongoDB not available — using in-memory store:', err.message));
+        .catch(err => {
+            console.log('MongoDB not available — using in-memory store:', err.message);
+            if (process.env.NODE_ENV === 'production') console.error('Atlas connection failed. Check: IP whitelist, password encoding, MONGO_URI format.');
+        });
     User = require('./models/User');
     Meeting = require('./models/Meeting');
     Poll = require('./models/Poll');

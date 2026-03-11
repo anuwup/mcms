@@ -127,6 +127,16 @@ export default function VideoArea({
   const [hasJoined, setHasJoined] = useState(false);
   const hostControlsRef = useRef(null);
 
+  const handleJoin = useCallback(async () => {
+    const success = await joinRoom();
+    if (success) setHasJoined(true);
+  }, [joinRoom]);
+
+  const handleLeave = useCallback(() => {
+    leaveRoom();
+    setHasJoined(false);
+  }, [leaveRoom]);
+
   const meetingShortcuts = useMemo(() => [
     { key: 'm', handler: () => hasJoined && toggleAudio(), allowInInput: false },
     { key: 'r', handler: () => hasJoined && hostControlsRef.current?.toggleRecording(), allowInInput: false },
@@ -159,16 +169,6 @@ export default function VideoArea({
       target.requestFullscreen().catch(() => {});
     }
   }, [fullscreenRef]);
-
-  const handleJoin = useCallback(async () => {
-    const success = await joinRoom();
-    if (success) setHasJoined(true);
-  }, [joinRoom]);
-
-  const handleLeave = useCallback(() => {
-    leaveRoom();
-    setHasJoined(false);
-  }, [leaveRoom]);
 
   const totalParticipants = 1 + peers.length;
 
